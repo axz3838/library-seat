@@ -1,0 +1,1142 @@
+<!--
+Project: University Library Seat Intelligent Reservation System
+Version: V1.2
+Description: Single-page frontend prototype, no backend database.
+Features: seat reservation, check-in, breach penalty, canvas heatmap, usage statistics, system reset.
+Dependency: Chart.js (CDN)
+Storage: Browser LocalStorage
+-->
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="高校图书馆座位智能预约系统，支持座位预约、签到管控、违约封禁、空间热力可视化与使用率统计。">
+    <title>高校图书馆座位智能预约系统</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: "Noto Sans SC", system-ui, -apple-system, sans-serif; }
+        html { scroll-behavior: smooth; }
+        body {
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            padding: 16px 12px;
+            color: #e2e8f0;
+            min-height: 100vh;
+            position: relative;
+            overflow-x: hidden;
+        }
+        #particles-bg {
+            position: fixed;
+            inset: 0;
+            z-index: -1;
+            pointer-events: none;
+        }
+        .container {
+            max-width: 1240px;
+            margin: 0 auto;
+            background: rgba(30, 41, 59, 0.82);
+            border-radius: 24px;
+            padding: 32px;
+            box-shadow: 0 8px 40px rgba(0,0,0,0.4), 0 0 0 1px rgba(56,189,248,0.15);
+            backdrop-filter: blur(14px);
+            animation: containerFade 0.8s ease-out;
+        }
+        @keyframes containerFade {
+            from { opacity: 0; transform: translateY(24px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .header-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 28px;
+            animation: slideInLeft 0.9s ease-out;
+        }
+        @keyframes slideInLeft {
+            from { opacity: 0; transform: translateX(-20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        .logo-area {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+        .logo-block {
+            width: 46px;
+            height: 46px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #2563eb, #38bdf8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 22px;
+            color: white;
+            box-shadow: 0 0 18px rgba(56,189,248,0.45);
+            animation: pulseGlow 3s infinite ease-in-out;
+        }
+        @keyframes pulseGlow {
+            0%, 100% { box-shadow: 0 0 18px rgba(56,189,248,0.45); }
+            50% { box-shadow: 0 0 28px rgba(56,189,248,0.65); }
+        }
+        .header-info {
+            font-size: 13px;
+            color: #94a3b8;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            animation: slideInRight 0.9s ease-out;
+        }
+        @keyframes slideInRight {
+            from { opacity: 0; transform: translateX(20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        h1 {
+            text-align: center;
+            color: #38bdf8;
+            font-size: 30px;
+            letter-spacing: 2px;
+            text-shadow: 0 0 14px rgba(56,189,248,0.45);
+        }
+        .menu {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 14px;
+            margin-bottom: 32px;
+            animation: fadeUp 1s ease-out;
+        }
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(16px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .menu button {
+            padding: 13px 24px;
+            border: none;
+            border-radius: 14px;
+            background: linear-gradient(135deg, #2563eb, #0284c7);
+            color: #fff;
+            font-size: 15px;
+            cursor: pointer;
+            transition: all 0.35s cubic-bezier(0.4,0,0.2,1);
+            box-shadow: 0 4px 16px rgba(37,99,235,0.32);
+            border: 1px solid rgba(148,202,255,0.2);
+            position: relative;
+            overflow: hidden;
+        }
+        .menu button::after {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.18), transparent);
+            transition: left 0.5s;
+        }
+        .menu button:hover::after {
+            left: 100%;
+        }
+        .menu button:hover {
+            background: linear-gradient(135deg, #1d4ed8, #0369a1);
+            transform: translateY(-4px);
+            box-shadow: 0 10px 24px rgba(37,99,235,0.5);
+        }
+        .menu button:active {
+            transform: translateY(0);
+        }
+        .page {
+            display: none;
+            animation: pageFadeIn 0.45s ease;
+        }
+        .page.active {
+            display: block;
+        }
+        @keyframes pageFadeIn {
+            from { opacity: 0; transform: translateY(10px); filter: blur(2px); }
+            to { opacity: 1; transform: translateY(0); filter: blur(0); }
+        }
+        .loading-mask {
+            position: fixed;
+            inset: 0;
+            background: rgba(15,23,42,0.72);
+            display: none;
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(6px);
+        }
+        .loading-box {
+            padding: 24px 36px;
+            border-radius: 18px;
+            background: #1e293b;
+            border: 1px solid #38bdf8;
+            color: #7dd3fc;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .spinner {
+            width: 22px;
+            height: 22px;
+            border: 2px solid rgba(56,189,248,0.2);
+            border-top-color: #38bdf8;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .ban-alert {
+            display: none;
+            background: rgba(220,38,38,0.28);
+            border: 1px solid #ef4444;
+            padding: 14px 18px;
+            border-radius: 12px;
+            margin-bottom: 18px;
+            text-align: center;
+            color: #fca5a5;
+            font-weight: 500;
+            animation: shakeAlert 0.5s ease;
+        }
+        @keyframes shakeAlert {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-6px); }
+            75% { transform: translateX(6px); }
+        }
+        .help-modal {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 90%;
+            max-width: 560px;
+            max-height: 80vh;
+            overflow-y: auto;
+            background: #1e293b;
+            border-radius: 20px;
+            border: 1px solid #38bdf8;
+            padding: 26px;
+            z-index: 1001;
+            display: none;
+            box-shadow: 0 10px 45px rgba(0,0,0,0.45);
+            animation: modalPop 0.35s ease;
+        }
+        @keyframes modalPop {
+            from { opacity: 0; transform: translate(-50%, -50%) scale(0.92); }
+            to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+        }
+        .help-modal h4 { color: #7dd3fc; margin-bottom: 14px; font-size: 19px; }
+        .help-modal p { color: #cbd5e1; margin: 7px 0; font-size: 14px; line-height: 1.75; }
+        .help-close { margin-top: 16px; padding: 9px 18px; border: none; border-radius: 10px; background: #2563eb; color: white; cursor: pointer; transition: 0.25s; }
+        .help-close:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(37,99,235,0.35); }
+        .seat-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 14px;
+            margin-top: 22px;
+        }
+        .seat {
+            padding: 18px 8px;
+            border-radius: 16px;
+            text-align: center;
+            color: #fff;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.35s cubic-bezier(0.4,0,0.2,1);
+            box-shadow: 0 4px 14px rgba(0,0,0,0.28);
+            border: 1px solid rgba(255,255,255,0.1);
+            position: relative;
+            overflow: hidden;
+        }
+        .seat::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle at center, rgba(255,255,255,0.12), transparent 60%);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .seat:hover::before {
+            opacity: 1;
+        }
+        .seat:hover {
+            transform: scale(1.08);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+        }
+        .free {
+            background: linear-gradient(135deg, #059669, #10b981);
+        }
+        .reserved {
+            background: linear-gradient(135deg, #d97706, #f59e0b);
+            animation: reservedPulse 2.2s infinite ease-in-out;
+        }
+        @keyframes reservedPulse {
+            0%, 100% { box-shadow: 0 4px 14px rgba(245,158,11,0.25); }
+            50% { box-shadow: 0 6px 18px rgba(245,158,11,0.45); }
+        }
+        .occupied {
+            background: linear-gradient(135deg, #dc2626, #ef4444);
+        }
+        .heat-panel {
+            margin-top: 20px;
+            padding: 24px;
+            background: rgba(15,23,42,0.62);
+            border-radius: 20px;
+            border: 1px solid rgba(56,189,248,0.18);
+            transition: 0.3s;
+        }
+        .heat-panel:hover {
+            box-shadow: 0 0 22px rgba(56,189,248,0.12);
+        }
+        #heatCanvas {
+            width: 100%;
+            height: 360px;
+            border-radius: 16px;
+            background: #0f172a;
+            border: 1px solid rgba(148,202,255,0.2);
+            cursor: pointer;
+        }
+        .heat-scale-wrap { margin-top: 14px; }
+        .heat-scale-bar {
+            height: 22px;
+            border-radius: 8px;
+            background: linear-gradient(90deg, #10b981, #f59e0b, #ef4444);
+        }
+        .heat-scale-text { display: flex; justify-content: space-between; margin-top: 6px; font-size: 13px; color: #94a3b8; }
+        .heat-legend {
+            display: flex;
+            gap: 22px;
+            margin-top: 16px;
+            flex-wrap: wrap;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            font-size: 14px;
+            color: #cbd5e1;
+        }
+        .legend-block {
+            width: 22px;
+            height: 22px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+        }
+        .stat-card {
+            padding: 20px;
+            background: rgba(15,23,42,0.58);
+            border-radius: 18px;
+            box-shadow: 0 4px 18px rgba(0,0,0,0.28);
+            margin: 12px 0;
+            border: 1px solid rgba(56,189,248,0.15);
+            transition: all 0.3s ease;
+        }
+        .stat-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 28px rgba(0,0,0,0.38);
+        }
+        .stat-card h4 { color: #7dd3fc; margin-bottom: 12px; }
+        input {
+            padding: 13px 15px;
+            border: 1px solid rgba(148,202,255,0.25);
+            border-radius: 12px;
+            font-size: 14px;
+            outline: none;
+            background: rgba(15,23,42,0.62);
+            color: #e2e8f0;
+            transition: 0.28s;
+        }
+        input:focus {
+            border-color: #38bdf8;
+            box-shadow: 0 0 0 4px rgba(56,189,248,0.22);
+        }
+        select {
+            padding: 13px 15px;
+            border: 1px solid rgba(148,202,255,0.25);
+            border-radius: 12px;
+            font-size: 14px;
+            outline: none;
+            background: rgba(15,23,42,0.62);
+            color: #e2e8f0;
+            transition: 0.28s;
+        }
+        select:focus {
+            border-color: #38bdf8;
+            box-shadow: 0 0 0 4px rgba(56,189,248,0.22);
+        }
+        .btn-group {
+            margin: 18px 0;
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .btn-group button {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #2563eb, #0284c7);
+            color: #fff;
+            cursor: pointer;
+            transition: 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+        .btn-group button::after {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.18), transparent);
+            transition: left 0.5s;
+        }
+        .btn-group button:hover::after {
+            left: 100%;
+        }
+        .btn-group button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 7px 18px rgba(37,99,235,0.38);
+        }
+        .log {
+            margin-top: 16px;
+            padding: 16px;
+            background: rgba(15,23,42,0.68);
+            border-radius: 12px;
+            font-size: 13px;
+            max-height: 150px;
+            overflow-y: auto;
+            line-height: 1.75;
+            border: 1px solid rgba(56,189,248,0.12);
+            color: #cbd5e1;
+        }
+        h3 {
+            color: #7dd3fc;
+            margin-bottom: 16px;
+            font-size: 23px;
+        }
+        p {
+            line-height: 1.85;
+            margin: 9px 0;
+            color: #cbd5e1;
+        }
+        .toast {
+            position: fixed;
+            top: 34px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 15px 30px;
+            border-radius: 14px;
+            color: #fff;
+            font-weight: 500;
+            display: none;
+            z-index: 999;
+            font-size: 15px;
+            box-shadow: 0 10px 28px rgba(0,0,0,0.42);
+            backdrop-filter: blur(10px);
+            animation: toastPop 0.35s ease;
+        }
+        @keyframes toastPop {
+            from { opacity: 0; transform: translate(-50%, -12px); }
+            to { opacity: 1; transform: translate(-50%, 0); }
+        }
+        .toast.success { background: rgba(16,185,129,0.92); }
+        .toast.error { background: rgba(239,68,68,0.92); }
+        .toast.warn { background: rgba(245,158,11,0.92); }
+        .chart-wrap {
+            margin-top: 24px;
+            height: 250px;
+        }
+        .empty-tip { padding: 22px; text-align: center; color: #64748b; font-size: 14px; }
+        .home-note {
+            font-size: 13px;
+            color: #94a3b8;
+            margin-top: 12px;
+            padding: 12px;
+            background: rgba(56,189,248,0.08);
+            border-radius: 12px;
+            border: 1px solid rgba(56,189,248,0.12);
+        }
+        @media (max-width: 720px) {
+            .container { padding: 22px 16px; }
+            h1 { font-size: 24px; }
+            .menu button { padding: 11px 16px; font-size: 14px; }
+            .seat-grid { gap: 10px; }
+            .seat { padding: 16px 6px; font-size: 13px; }
+            .header-bar { flex-direction: column; gap: 12px; }
+        }
+    </style>
+</head>
+<body>
+<canvas id="particles-bg"></canvas>
+<div class="loading-mask" id="loadingMask">
+    <div class="loading-box">
+        <span class="spinner"></span>
+        <span>系统处理中，请稍候……</span>
+    </div>
+</div>
+<div class="help-modal" id="helpModal">
+    <h4>系统操作说明</h4>
+    <p>1. 点击预约座位页面绿色座位完成预约，预约后10秒之内必须再次点击座位签到。</p>
+    <p>2. 超时不签到自动释放座位，累计3次违约账号封禁1小时。</p>
+    <p>3. 签到成功后座位变红代表正在占用；再次点击座位释放离开。</p>
+    <p>4. 热力可视化页面实时展示阅览厅座位热度分布，点击画布座位查看详情。</p>
+    <button class="help-close" onclick="closeHelp()">知道了</button>
+</div>
+<div class="container">
+    <div class="header-bar">
+        <div class="logo-area">
+            <div class="logo-block">智</div>
+            <h1>高校图书馆座位智能预约系统</h1>
+        </div>
+        <div class="header-info">
+            <span style="font-size:12px;color:#94a3b8;">【原型演示｜单用户模拟】</span>
+            <button onclick="openHelp()" style="padding:6px 12px;border-radius:8px;border:1px solid #38bdf8;background:transparent;color:#38bdf8;cursor:pointer;">操作帮助</button>
+        </div>
+    </div>
+    <div class="ban-alert" id="banAlert">⚠️账号目前处于封禁状态，暂时无法执行任何操作</div>
+    <div class="menu">
+        <button onclick="showPage('home')">首页</button>
+        <button onclick="showPage('reserve')">预约座位</button>
+        <button onclick="showPage('heat')">🔥空间热力可视化</button>
+        <button onclick="showPage('admin')">管理后台</button>
+        <button onclick="showPage('user')">个人中心</button>
+    </div>
+    <div id="home" class="page active">
+        <h3>系统简介</h3>
+        <p>本作品面向高校图书馆场景，解决占座、座位资源不透明问题。</p>
+        <p>核心特色：座位预约管理 + <strong>空间热力数据可视化</strong>，直观展示阅览区人流分布。</p>
+        <p>业务规则：预约后10秒内签到，超时自动释放；累计3次违约账号封禁1小时。</p>
+        <p>支持：座位预约、签到落座、离开释放、违约管控、实时热力分析、历史使用率统计。</p>
+        <div class="home-note">
+            💡 提示：使用率统计图表需要网络连接；座位预约、签到、违约封禁与热力可视化功能可离线正常使用。
+        </div>
+    </div>
+    <div id="reserve" class="page">
+        <h3>座位预约</h3>
+        <div class="btn-group">
+            <input type="number" id="seatId" placeholder="座位号1-20" min="1" max="20" step="1">
+            <select id="timeSlot">
+                <option value="300000">5分钟（演示）</option>
+                <option value="3600000">1小时</option>
+                <option value="7200000">2小时</option>
+            </select>
+            <button onclick="reserve()">预约</button>
+            <button onclick="cancelReserve()">取消预约</button>
+        </div>
+        <div class="seat-grid" id="seatGrid"></div>
+        <div class="log" id="log"></div>
+    </div>
+    <div id="heat" class="page">
+        <h3>空间热力可视化</h3>
+        <div class="heat-panel">
+            <canvas id="heatCanvas"></canvas>
+            <div class="heat-scale-wrap">
+                <div class="heat-scale-bar"></div>
+                <div class="heat-scale-text">
+                    <span>热度低(空闲)</span>
+                    <span>中等(预约)</span>
+                    <span>热度高(占用)</span>
+                </div>
+            </div>
+            <div class="heat-legend">
+                <div class="legend-item">
+                    <div class="legend-block" style="background:#10b981;"></div>
+                    <span>空闲座位（热度低）</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-block" style="background:#f59e0b;"></div>
+                    <span>已预约（中等热度）</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-block" style="background:#ef4444;"></div>
+                    <span>已占用（热度高）</span>
+                </div>
+            </div>
+            <div class="stat-card" id="heatData"></div>
+            <div class="chart-wrap">
+                <canvas id="usageChart"></canvas>
+            </div>
+        </div>
+    </div>
+    <div id="admin" class="page">
+        <h3>管理后台</h3>
+        <div class="stat-card">
+            <p>签到超时阈值：10秒未签到自动释放座位</p>
+            <p>违约规则：累计3次违约，账号封禁1小时</p>
+            <p>总座位数量：20</p>
+            <p>当前已占用/预约：<span id="used">0</span></p>
+            <p>阅览区实时使用率：<span id="rate">0%</span></p>
+            <button onclick="resetAllSystem()" style="padding:10px 16px;border:none;border-radius:10px;background:#dc2626;color:#fff;margin-top:12px;cursor:pointer;">🔄重置全部系统数据</button>
+        </div>
+        <div class="stat-card">
+            <h4>系统参数配置(演示面板)</h4>
+            <p>签到超时时间(秒)：<input value="10" disabled></p>
+            <p>违约触发封禁阈值：<input value="3" disabled></p>
+            <p>账号封禁时长(小时)：<input value="1" disabled></p>
+            <p style="font-size:13px;color:#94a3b8;">说明：纯前端版本仅展示，对接后端后可启用修改功能</p>
+        </div>
+    </div>
+    <div id="user" class="page">
+        <h3>个人中心</h3>
+        <div class="stat-card">
+            <p>违约次数：<span id="breach">0</span> / 3</p>
+            <p>封禁剩余时间：<span id="banLeft">0</span> 分钟</p>
+            <p>当前预约座位：<span id="mySeat">无</span></p>
+        </div>
+    </div>
+</div>
+<div id="toast" class="toast"></div>
+<script>
+    const ANIMATION_ENABLED = true;
+
+    let seats = Array(20).fill().map(() => ({
+        status: 'free',
+        reserveTime: null,
+        signTime: null,
+        endTime: null
+    }));
+
+    const user = {
+        breachCount: 0,
+        bannedUntil: 0,
+        hasSeat: false,
+        mySeatId: null
+    };
+
+    const SIGN_TIMEOUT = 10000;
+    const BREACH_LIMIT = 3;
+    const BAN_DURATION = 3600000;
+
+    let chartInstance = null;
+    let dynamicChartData = [];
+    let dynamicLabelList = [];
+    let seatRenderTimer = null;
+
+    const particleCanvas = document.getElementById("particles-bg");
+    const pCtx = particleCanvas.getContext("2d");
+    let particles = [];
+    let particleRAF = null;
+    let particlePaused = false;
+
+    function resizeParticle() {
+        particleCanvas.width = window.innerWidth;
+        particleCanvas.height = window.innerHeight;
+    }
+
+    resizeParticle();
+    window.addEventListener("resize", resizeParticle);
+
+    class Particle {
+        constructor() {
+            this.x = Math.random() * particleCanvas.width;
+            this.y = Math.random() * particleCanvas.height;
+            this.r = Math.random() * 1.4 + 0.4;
+            this.vx = (Math.random() - 0.5) * 0.35;
+            this.vy = (Math.random() - 0.5) * 0.35;
+        }
+
+        update() {
+            this.x += this.vx;
+            this.y += this.vy;
+            if (this.x < 0 || this.x > particleCanvas.width) this.vx *= -1;
+            if (this.y < 0 || this.y > particleCanvas.height) this.vy *= -1;
+        }
+
+        draw() {
+            pCtx.beginPath();
+            pCtx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
+            pCtx.fillStyle = "rgba(56,189,248,0.22)";
+            pCtx.fill();
+        }
+    }
+
+    for (let i = 0; i < 30; i++) {
+        particles.push(new Particle());
+    }
+
+    function animateParticle() {
+        if (!ANIMATION_ENABLED) return;
+        pCtx.clearRect(0, 0, particleCanvas.width, particleCanvas.height);
+        if (!particlePaused) {
+            particles.forEach(p => {
+                p.update();
+                p.draw();
+            });
+        }
+        particleRAF = requestAnimationFrame(animateParticle);
+    }
+
+    if (ANIMATION_ENABLED) {
+        animateParticle();
+    }
+
+    document.addEventListener("visibilitychange", () => {
+        if (document.hidden) {
+            particlePaused = true;
+        } else {
+            particlePaused = false;
+        }
+    });
+
+    let toastLocked = false;
+
+    function saveLocalData() {
+        localStorage.setItem("seatData", JSON.stringify(seats));
+        localStorage.setItem("userData", JSON.stringify(user));
+        localStorage.setItem("chartCache", JSON.stringify({ dynamicChartData, dynamicLabelList }));
+    }
+
+    function loadLocalData() {
+        const seatStr = localStorage.getItem("seatData");
+        const userStr = localStorage.getItem("userData");
+        const chartStr = localStorage.getItem("chartCache");
+
+        if (seatStr) seats = JSON.parse(seatStr);
+        if (userStr) {
+            const tempUser = JSON.parse(userStr);
+            user.breachCount = tempUser.breachCount;
+            user.bannedUntil = tempUser.bannedUntil;
+            user.hasSeat = tempUser.hasSeat;
+            user.mySeatId = tempUser.mySeatId;
+        }
+        if (chartStr) {
+            const cache = JSON.parse(chartStr);
+            dynamicChartData = cache.dynamicChartData;
+            dynamicLabelList = cache.dynamicLabelList;
+        }
+    }
+
+    setInterval(saveLocalData, 2500);
+
+    function resetAllSystem() {
+        if (!confirm("确认重置全部系统测试数据？\n所有座位状态、违约记录、图表历史数据将恢复初始状态。")) {
+            return;
+        }
+
+        localStorage.removeItem("seatData");
+        localStorage.removeItem("userData");
+        localStorage.removeItem("chartCache");
+
+        seats = Array(20).fill().map(() => ({
+            status: 'free',
+            reserveTime: null,
+            signTime: null,
+            endTime: null
+        }));
+
+        user.breachCount = 0;
+        user.bannedUntil = 0;
+        user.hasSeat = false;
+        user.mySeatId = null;
+
+        dynamicChartData = [];
+        dynamicLabelList = [];
+
+        const logDom = document.getElementById("log");
+        if (logDom) logDom.innerHTML = "";
+
+        showToast("系统已重置，全部数据恢复初始状态", "success");
+        updateUserInfo();
+        updateAdminData();
+        renderSeats();
+        showHeat();
+    }
+
+    function showLoading() {
+        document.getElementById("loadingMask").style.display = "flex";
+    }
+
+    function hideLoading() {
+        document.getElementById("loadingMask").style.display = "none";
+    }
+
+    function openHelp() {
+        const modal = document.getElementById("helpModal");
+        modal.style.display = "block";
+        modal.addEventListener('click', function (e) {
+            if (e.target === modal) {
+                closeHelp();
+            }
+        });
+    }
+
+    function closeHelp() {
+        document.getElementById("helpModal").style.display = "none";
+    }
+
+    const heatCanvasDom = document.getElementById("heatCanvas");
+
+    heatCanvasDom.onclick = function (e) {
+        const rect = heatCanvasDom.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        const col = Math.floor(x / (heatCanvasDom.offsetWidth / 5));
+        const row = Math.floor(y / (heatCanvasDom.offsetHeight / 4));
+        const idx = row * 5 + col;
+
+        if (idx >= 0 && idx < 20) {
+            const s = seats[idx];
+            let statusText = "";
+            if (s.status === "free") statusText = "空闲";
+            else if (s.status === "reserved") statusText = "已预约";
+            else if (s.status === "occupied") statusText = "正在占用";
+
+            showToast(`座位${idx + 1}，状态：${statusText}`, "success");
+        }
+    };
+
+    function collectRealRate() {
+        const used = seats.filter(s => s.status !== 'free').length;
+        const rateVal = Number((used / 20 * 100).toFixed(1));
+        const now = new Date();
+        const lab = `${now.getHours()}:${now.getMinutes().toString().padStart(2, '0')}`;
+
+        dynamicChartData.push(rateVal);
+        dynamicLabelList.push(lab);
+
+        if (dynamicChartData.length > 12) {
+            dynamicChartData.shift();
+            dynamicLabelList.shift();
+        }
+    }
+
+    setInterval(collectRealRate, 8000);
+
+    function showPage(id) {
+        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+
+        showLoading();
+
+        setTimeout(() => {
+            if (id === 'reserve') renderSeats();
+            if (id === 'heat') showHeat();
+
+            updateUserInfo();
+            updateAdminData();
+
+            const nowCheck = Date.now();
+            const banDom = document.getElementById("banAlert");
+
+            if (user.bannedUntil > nowCheck) {
+                banDom.style.display = "block";
+            } else {
+                banDom.style.display = "none";
+            }
+
+            hideLoading();
+        }, 200);
+    }
+
+    function renderSeats() {
+        let grid = document.getElementById('seatGrid');
+        grid.innerHTML = '';
+
+        const now = Date.now();
+
+        for (let i = 0; i < 20; i++) {
+            let s = document.createElement('div');
+            s.className = 'seat ' + seats[i].status;
+
+            let text = i + 1;
+
+            if (seats[i].status === 'reserved') {
+                let left = Math.max(0, Math.floor((SIGN_TIMEOUT - (now - seats[i].reserveTime)) / 1000));
+                text += `\n(${left}s)`;
+            }
+
+            if (seats[i].status === 'occupied' && seats[i].endTime) {
+                let left = Math.max(0, Math.floor((seats[i].endTime - now) / 60000));
+                text += `\n(${left}分)`;
+            }
+
+            s.innerText = text;
+            s.onclick = () => seatAction(i);
+            grid.appendChild(s);
+        }
+
+        if (seatRenderTimer) clearTimeout(seatRenderTimer);
+        seatRenderTimer = setTimeout(renderSeats, 1000);
+    }
+
+    function showToast(msg, type) {
+        if (toastLocked) return;
+
+        const toast = document.getElementById('toast');
+        toast.className = 'toast ' + type;
+        toast.innerText = msg;
+        toast.style.display = 'block';
+
+        toastLocked = true;
+
+        setTimeout(() => {
+            toast.style.display = 'none';
+            toastLocked = false;
+        }, 2200);
+
+        addLog(msg);
+    }
+
+    function addLog(msg) {
+        const log = document.getElementById('log');
+        if (log) {
+            log.innerHTML = `[${new Date().toLocaleTimeString()}] ${msg}<br>` + log.innerHTML;
+        }
+    }
+
+    function seatAction(index) {
+        const seat = seats[index];
+        const now = Date.now();
+
+        if (user.bannedUntil > now) {
+            showToast("账号已封禁，无法操作", "error");
+            return;
+        }
+
+        if (seat.status === 'free') {
+            if (user.hasSeat) {
+                showToast("已有预约座位，不可重复预约", "warn");
+                return;
+            }
+
+            seat.status = 'reserved';
+            seat.reserveTime = now;
+            user.hasSeat = true;
+            user.mySeatId = index;
+
+            showToast(`预约座位${index + 1}成功，请10秒内完成签到`, "success");
+
+            setTimeout(() => {
+                if (seats[index].status === 'reserved' && !seats[index].signTime) {
+                    releaseSeat(index);
+                    user.breachCount++;
+
+                    if (user.breachCount >= BREACH_LIMIT) {
+                        user.bannedUntil = now + BAN_DURATION;
+                        showToast("违约3次，账号封禁1小时", "error");
+                    } else {
+                        showToast(`座位${index + 1}超时未签到，已释放（违约${user.breachCount}/3）`, "warn");
+                    }
+
+                    updateUserInfo();
+                }
+            }, SIGN_TIMEOUT);
+
+        } else if (seat.status === 'reserved' && user.mySeatId === index) {
+            seat.status = 'occupied';
+            seat.signTime = now;
+
+            const duration = parseInt(document.getElementById('timeSlot').value);
+            seat.endTime = now + duration;
+
+            showToast(`签到成功，座位${index + 1}已占用`, "success");
+
+        } else if (seat.status === 'occupied' && user.mySeatId === index) {
+            releaseSeat(index);
+            showToast(`离开座位${index + 1}`, "success");
+        }
+
+        updateAdminData();
+        updateUserInfo();
+    }
+
+    function releaseSeat(index) {
+        seats[index].status = 'free';
+        seats[index].reserveTime = null;
+        seats[index].signTime = null;
+        seats[index].endTime = null;
+        user.hasSeat = false;
+        user.mySeatId = null;
+    }
+
+    function reserve() {
+        const id = parseInt(document.getElementById('seatId').value) - 1;
+
+        if (isNaN(id) || id < 0 || id >= 20) {
+            showToast("请输入1-20之间座位号", "error");
+            return;
+        }
+
+        seatAction(id);
+    }
+
+    function cancelReserve() {
+        if (!user.hasSeat || user.mySeatId === null) {
+            showToast("暂无预约座位", "warn");
+            return;
+        }
+
+        releaseSeat(user.mySeatId);
+        showToast("已取消预约", "success");
+        updateAdminData();
+        updateUserInfo();
+    }
+
+    function showHeat() {
+        const canvas = document.getElementById('heatCanvas');
+        const ctx = canvas.getContext('2d');
+        const heatDataDom = document.getElementById('heatData');
+
+        canvas.width = canvas.offsetWidth;
+        canvas.height = canvas.offsetHeight;
+
+        let occupied = 0, reserved = 0, free = 0;
+
+        seats.forEach(s => {
+            if (s.status === 'occupied') occupied++;
+            else if (s.status === 'reserved') reserved++;
+            else free++;
+        });
+
+        const rate = ((occupied + reserved) / 20 * 100).toFixed(1);
+
+        heatDataDom.innerHTML = `
+            <p>空闲座位：${free} 个｜已预约：${reserved} 个｜已占用：${occupied} 个</p>
+            <p>阅览区实时使用率：${rate}%</p>
+            <p>使用建议：当前热度${rate > 60 ? "偏高，建议错峰前往" : "适中，可正常前往"}</p>
+        `;
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        ctx.strokeStyle = "rgba(56,189,248,0.35)";
+        ctx.lineWidth = 3;
+        ctx.rect(15, 15, canvas.width - 30, canvas.height - 30);
+        ctx.stroke();
+
+        ctx.setLineDash([8, 6]);
+        ctx.beginPath();
+        ctx.moveTo(canvas.width / 2, 20);
+        ctx.lineTo(canvas.width / 2, canvas.height - 20);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        const radius = Math.min(canvas.width, canvas.height) / 9;
+
+        seats.forEach((seat, i) => {
+            const col = i % 5;
+            const row = Math.floor(i / 5);
+            const x = (col + 0.5) * canvas.width / 5;
+            const y = (row + 0.5) * canvas.height / 4;
+
+            let intensity = 0.1;
+            if (seat.status === 'reserved') intensity = 0.6;
+            if (seat.status === 'occupied') intensity = 1;
+
+            const grd = ctx.createRadialGradient(x, y, 0, x, y, radius);
+
+            if (intensity < 0.3) {
+                grd.addColorStop(0, 'rgba(16,185,129,0.4)');
+                grd.addColorStop(1, 'rgba(16,185,129,0)');
+            } else if (intensity < 0.7) {
+                grd.addColorStop(0, 'rgba(245,158,11,0.5)');
+                grd.addColorStop(1, 'rgba(245,158,11,0)');
+            } else {
+                grd.addColorStop(0, 'rgba(239,68,68,0.55)');
+                grd.addColorStop(1, 'rgba(239,68,68,0)');
+            }
+
+            ctx.fillStyle = grd;
+            ctx.beginPath();
+            ctx.arc(x, y, radius, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = '#e2e8f0';
+            ctx.font = "16px sans-serif";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText(i + 1, x, y);
+        });
+
+        const chartCanvas = document.getElementById('usageChart').getContext('2d');
+
+        if (chartInstance) chartInstance.destroy();
+
+        if (typeof Chart === "undefined") {
+            chartCanvas.clearRect(0, 0, chartCanvas.canvas.width, chartCanvas.canvas.height);
+            chartCanvas.fillStyle = "#94a3b8";
+            chartCanvas.textAlign = "center";
+            chartCanvas.font = "16px sans-serif";
+            chartCanvas.fillText("网络异常，图表组件加载失败，座位业务可正常使用", chartCanvas.canvas.width / 2, chartCanvas.canvas.height / 2);
+        } else {
+            let chartLabelArr, chartDataArr;
+
+            if (dynamicChartData.length >= 3) {
+                chartLabelArr = dynamicLabelList;
+                chartDataArr = dynamicChartData;
+            } else {
+                chartLabelArr = ["08:00", "10:00", "12:00", "14:00", "16:00", "18:00", "20:00"];
+                chartDataArr = [22, 58, 72, 65, 45, 60, 41];
+            }
+
+            chartInstance = new Chart(chartCanvas, {
+                type: 'line',
+                data: {
+                    labels: chartLabelArr,
+                    datasets: [{
+                        label: "座位使用率(%)",
+                        data: chartDataArr,
+                        borderColor: '#38bdf8',
+                        backgroundColor: 'rgba(56,189,248,0.15)',
+                        fill: true,
+                        tension: 0.3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false
+                }
+            });
+        }
+    }
+
+    function updateAdminData() {
+        const used = seats.filter(s => s.status !== 'free').length;
+        document.getElementById('used').textContent = used;
+        document.getElementById('rate').textContent = (used / 20 * 100).toFixed(1) + '%';
+    }
+
+    function updateUserInfo() {
+        const now = Date.now();
+        const banLeft = Math.max(0, Math.floor((user.bannedUntil - now) / 60000));
+
+        document.getElementById('breach').textContent = user.breachCount;
+        document.getElementById('banLeft').textContent = banLeft;
+        document.getElementById('mySeat').textContent = user.hasSeat ? (user.mySeatId + 1) : '无';
+    }
+
+    function delayedInit() {
+        loadLocalData();
+
+        setTimeout(() => {
+            renderSeats();
+            updateUserInfo();
+            updateAdminData();
+
+            const nowCheck = Date.now();
+            const banDom = document.getElementById("banAlert");
+
+            if (user.bannedUntil > nowCheck) {
+                banDom.style.display = "block";
+            }
+        }, 900);
+    }
+
+    document.getElementById('heatCanvas').addEventListener('resize', () => {
+        if (document.getElementById('heat').classList.contains('active')) {
+            showHeat();
+        }
+    });
+
+    window.addEventListener('resize', () => {
+        if (document.getElementById('heat').classList.contains('active')) {
+            showHeat();
+        }
+    });
+
+    delayedInit();
+</script>
+</body>
+</html>
